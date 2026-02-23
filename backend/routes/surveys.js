@@ -27,14 +27,25 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/surveys/my — get current user's surveys
+// GET /api/surveys/my — get current user's surveys with karma status
 router.get('/my', auth, async (req, res) => {
   try {
     const surveys = await Survey.findAll({
       where: { ownerId: req.user.id },
       order: [['createdAt', 'DESC']],
     });
-    res.json({ surveys });
+
+    // Attach karma-based status to each survey
+    const userKarma = req.user.karma;
+    const surveysWithStatus = surveys.map((s) => {
+      const data = s.toJSON();
+      data.canAfford = userKarma >= s.duration;
+      data.responsesRemaining = Math.floor(userKarma / s.duration);
+      data.karmaCostPerResponse = s.duration;
+      return data;
+    });
+
+    res.json({ surveys: surveysWithStatus, karma: userKarma });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

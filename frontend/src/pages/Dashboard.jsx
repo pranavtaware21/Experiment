@@ -63,6 +63,7 @@ export default function Dashboard() {
 
   const totalResponses = mySurveys.reduce((sum, s) => sum + s.responses, 0);
   const activeSurveys = mySurveys.filter((s) => s.isActive).length;
+  const offlineSurveys = mySurveys.filter((s) => s.isActive && !s.canAfford);
   const earnableSurveys = availableSurveys.filter((s) => s.ownerId !== user?.id && s.owner?.id !== user?.id);
 
   return (
@@ -107,10 +108,10 @@ export default function Dashboard() {
         {/* Stats */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6" staggerDelay={0.08}>
           {[
-            { icon: <FaBolt className="text-primary" />, bg: 'bg-primary/15 border-primary/20', label: 'Credits', value: user?.karma || 0 },
-            { icon: <FaPlusCircle className="text-accent" />, bg: 'bg-accent/15 border-accent/20', label: 'Active Surveys', value: activeSurveys },
+            { icon: <FaBolt className="text-primary" />, bg: 'bg-primary/15 border-primary/20', label: 'Karma Balance', value: user?.karma || 0 },
+            { icon: <FaPlusCircle className="text-accent" />, bg: 'bg-accent/15 border-accent/20', label: 'Surveys Live', value: activeSurveys - offlineSurveys.length },
             { icon: <FaChartLine className="text-green-400" />, bg: 'bg-green-500/15 border-green-500/20', label: 'Total Responses', value: totalResponses },
-            { icon: <FaClipboardCheck className="text-purple-400" />, bg: 'bg-purple-500/15 border-purple-500/20', label: 'Completed', value: user?.surveysCompleted || 0 },
+            { icon: <FaClipboardCheck className="text-purple-400" />, bg: 'bg-purple-500/15 border-purple-500/20', label: 'Surveys Done', value: user?.surveysCompleted || 0 },
           ].map((s) => (
             <StaggerItem key={s.label}>
               <motion.div
@@ -127,6 +128,25 @@ export default function Dashboard() {
             </StaggerItem>
           ))}
         </StaggerContainer>
+
+        {/* Karma warning */}
+        {offlineSurveys.length > 0 && (
+          <FadeIn>
+            <div className="mb-5 px-4 py-3 rounded-xl text-sm font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-between">
+              <span>
+                <FaBolt className="inline mr-1.5" size={12} />
+                {offlineSurveys.length} survey{offlineSurveys.length > 1 ? 's are' : ' is'} <strong>offline</strong> — you need more karma to receive responses.
+                Earn karma by completing surveys in the "Earn Credits" tab.
+              </span>
+              <button
+                onClick={() => setActiveTab('earner')}
+                className="ml-3 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 px-3 py-1 rounded-lg text-xs font-semibold border-none cursor-pointer transition-colors whitespace-nowrap"
+              >
+                Earn Karma
+              </button>
+            </div>
+          </FadeIn>
+        )}
 
         {/* Tabs */}
         <FadeIn delay={0.1}>
@@ -202,17 +222,31 @@ export default function Dashboard() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 <h4 className="font-medium text-text-dark text-sm truncate">{survey.title}</h4>
-                                <div className="flex items-center gap-3 mt-1.5 text-xs text-text/50">
+                                <div className="flex items-center gap-3 mt-1.5 text-xs text-text/50 flex-wrap">
                                   <span className="flex items-center gap-1"><FaChartLine size={10} /> {survey.responses} responses</span>
                                   <span className="flex items-center gap-1"><FaClock size={10} /> {survey.duration} min</span>
-                                  <span className={`font-medium ${survey.isActive ? 'text-green-400' : 'text-text/30'}`}>
-                                    {survey.isActive ? 'Active' : 'Paused'}
-                                  </span>
+                                  <span className="flex items-center gap-1"><FaBolt size={10} /> {survey.karmaCostPerResponse || survey.duration} karma/response</span>
+                                  {!survey.isActive ? (
+                                    <span className="font-medium text-text/30">Paused</span>
+                                  ) : survey.canAfford === false ? (
+                                    <span className="font-medium text-red-400">Offline (need karma)</span>
+                                  ) : (
+                                    <span className="font-medium text-green-400">Live</span>
+                                  )}
                                 </div>
                                 <div className="mt-2.5">
+                                  <div className="flex items-center justify-between mb-1">
+                                    {survey.canAfford !== undefined && survey.isActive && (
+                                      <p className="text-xs text-text/40">
+                                        {survey.canAfford
+                                          ? `Can afford ${survey.responsesRemaining} more response${survey.responsesRemaining !== 1 ? 's' : ''}`
+                                          : 'Earn more karma to get responses'}
+                                      </p>
+                                    )}
+                                  </div>
                                   <div className="h-1.5 bg-text-dark/5 rounded-full overflow-hidden">
                                     <motion.div
-                                      className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+                                      className={`h-full rounded-full ${survey.canAfford === false ? 'bg-gradient-to-r from-red-500 to-red-400' : 'bg-gradient-to-r from-primary to-accent'}`}
                                       initial={{ width: 0 }}
                                       animate={{ width: `${Math.min((survey.responses / 50) * 100, 100)}%` }}
                                       transition={{ duration: 0.8, delay: 0.1 + i * 0.05, ease: 'easeOut' }}
@@ -272,13 +306,13 @@ export default function Dashboard() {
                         <FaRocket className="text-accent" />
                         <span className="text-xs font-semibold text-accent uppercase tracking-wider">Accelerator</span>
                       </div>
-                      <h3 className="font-bold text-text-dark mb-1 text-sm">Get responses faster</h3>
-                      <p className="text-text/50 text-xs mb-4">Boost your survey to the top.</p>
+                      <h3 className="font-bold text-text-dark mb-1 text-sm">Buy Karma</h3>
+                      <p className="text-text/50 text-xs mb-4">Skip the queue — buy karma to rank higher and get responses faster.</p>
                       <div className="space-y-2 mb-4">
                         {[
-                          { credits: 25, price: '₹799', label: 'Starter' },
-                          { credits: 75, price: '₹1,599', label: 'Growth', popular: true },
-                          { credits: 200, price: '₹2,999', label: 'Pro' },
+                          { credits: 50, price: '₹499', label: 'Starter', desc: '~10 responses for a 5-min survey' },
+                          { credits: 150, price: '₹999', label: 'Growth', popular: true, desc: '~30 responses for a 5-min survey' },
+                          { credits: 500, price: '₹1,999', label: 'Pro', desc: '~100 responses for a 5-min survey' },
                         ].map((pkg) => (
                           <motion.div
                             key={pkg.credits}
